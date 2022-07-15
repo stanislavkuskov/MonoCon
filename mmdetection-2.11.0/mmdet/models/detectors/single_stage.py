@@ -22,12 +22,12 @@ class SingleStageDetector(BaseDetector):
                  test_cfg=None,
                  pretrained=None):
         super(SingleStageDetector, self).__init__()
-        self.backbone = build_backbone(backbone)
+        self.backbone = backbone
         if neck is not None:
-            self.neck = build_neck(neck)
-        bbox_head.update(train_cfg=train_cfg)
-        bbox_head.update(test_cfg=test_cfg)
-        self.bbox_head = build_head(bbox_head)
+            self.neck = neck
+        # bbox_head.update(train_cfg=train_cfg)
+        # bbox_head.update(test_cfg=test_cfg)
+        self.bbox_head = bbox_head
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.init_weights(pretrained=pretrained)

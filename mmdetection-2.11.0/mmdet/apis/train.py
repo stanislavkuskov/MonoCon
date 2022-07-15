@@ -1,6 +1,6 @@
 import random
 import warnings
-
+from os import path as osp
 import numpy as np
 import torch
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
@@ -13,7 +13,12 @@ from mmdet.core import DistEvalHook, EvalHook
 from mmdet.datasets import (build_dataloader, build_dataset,
                             replace_ImageToTensor)
 from mmdet.utils import get_root_logger
+from mmdet3d.apis import (inference_mono_3d_detector, init_model,
+                          show_result_meshlab)
+import mmcv
+from mmdet3d.core.bbox.structures.cam_box3d import CameraInstance3DBoxes
 
+from mmdet3d.core import show_multi_modality_result
 
 def set_random_seed(seed, deterministic=False):
     """Set random seed.
@@ -69,6 +74,29 @@ def train_detector(model,
             dist=distributed,
             seed=cfg.seed) for ds in dataset
     ]
+    
+    ## Test visualization of image before training (from dataset)
+    data = dataset[0].__getitem__(0)
+    assert 'img' in data.keys()
+    img_filename = data['img_metas'].data["filename"]
+    file_name = osp.split(img_filename)[-1].split('.')[0]
+    img = mmcv.imread(img_filename)
+    
+    pred_bboxes = data['gt_bboxes_3d'].data.tensor.numpy()
+    if 'cam_intrinsic' not in data['img_metas'].data:
+        raise NotImplementedError(
+                'camera intrinsic matrix is not provided')
+    show_bboxes = CameraInstance3DBoxes(
+            pred_bboxes, box_dim=pred_bboxes.shape[-1], origin=(0.5, 1.0, 0.5))
+    show_multi_modality_result(
+        img,
+        None,
+        show_bboxes,
+        data['img_metas'].data['cam_intrinsic'],
+        '/workspace/MonoCon/res/',
+        file_name,
+        box_mode='camera',
+        show=False)
 
     # put model on gpus
     if distributed:

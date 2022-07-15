@@ -57,11 +57,11 @@ def init_model(config, checkpoint=None, device='cuda:0'):
     model = build_model(config.model, test_cfg=config.get('test_cfg'))
     if checkpoint is not None:
         checkpoint = load_checkpoint(model, checkpoint)
-        if 'CLASSES' in checkpoint['meta']:
+        if 'CLASSES' in checkpoint.get('meta', {}):
             model.CLASSES = checkpoint['meta']['CLASSES']
         else:
             model.CLASSES = config.class_names
-        if 'PALETTE' in checkpoint['meta']:  # 3D Segmentor
+        if 'PALETTE' in checkpoint.get('meta', {}):  # 3D Segmentor
             model.PALETTE = checkpoint['meta']['PALETTE']
     model.cfg = config  # save the config in the model for convenience
     model.to(device)
@@ -436,7 +436,7 @@ def show_proj_det_result_meshlab(data,
         show_bboxes = CameraInstance3DBoxes(
             pred_bboxes, box_dim=pred_bboxes.shape[-1], origin=(0.5, 1.0, 0.5))
         # TODO: remove the hack of box from NuScenesMonoDataset
-        show_bboxes = mono_cam_box2vis(show_bboxes)
+        # show_bboxes = mono_cam_box2vis(show_bboxes)
 
         show_multi_modality_result(
             img,

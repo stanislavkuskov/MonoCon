@@ -1,3 +1,4 @@
-mmdetection-2.11.0/
-mmdetection-2.11.0-extra-monocon/
-mmdetection3d-0.14.0/
+res/**
+monocon/**
+mmdetection3d-0.14.0/**
+mmdetection-2.11.0/**

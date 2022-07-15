@@ -1,0 +1,55 @@
+[1mdiff --git a/mmdetection-2.11.0/mmdet/apis/train.py b/mmdetection-2.11.0/mmdet/apis/train.py[m
+[1mindex 82c20bf..60a6904 100644[m
+[1m--- a/mmdetection-2.11.0/mmdet/apis/train.py[m
+[1m+++ b/mmdetection-2.11.0/mmdet/apis/train.py[m
+[36m@@ -1,6 +1,6 @@[m
+ import random[m
+ import warnings[m
+[31m-[m
+[32m+[m[32mfrom os import path as osp[m
+ import numpy as np[m
+ import torch[m
+ from mmcv.parallel import MMDataParallel, MMDistributedDataParallel[m
+[36m@@ -13,7 +13,12 @@[m [mfrom mmdet.core import DistEvalHook, EvalHook[m
+ from mmdet.datasets import (build_dataloader, build_dataset,[m
+                             replace_ImageToTensor)[m
+ from mmdet.utils import get_root_logger[m
+[32m+[m[32mfrom mmdet3d.apis import (inference_mono_3d_detector, init_model,[m
+[32m+[m[32m                          show_result_meshlab)[m
+[32m+[m[32mimport mmcv[m
+[32m+[m[32mfrom mmdet3d.core.bbox.structures.cam_box3d import CameraInstance3DBoxes[m
+ [m
+[32m+[m[32mfrom mmdet3d.core import show_multi_modality_result[m
+ [m
+ def set_random_seed(seed, deterministic=False):[m
+     """Set random seed.[m
+[36m@@ -69,6 +74,29 @@[m [mdef train_detector(model,[m
+             dist=distributed,[m
+             seed=cfg.seed) for ds in dataset[m
+     ][m
+[32m+[m[41m    [m
+[32m+[m[32m    ## Test visualization of image before training (from dataset)[m
+[32m+[m[32m    data = dataset[0].__getitem__(0)[m
+[32m+[m[32m    assert 'img' in data.keys()[m
+[32m+[m[32m    img_filename = data['img_metas'].data["filename"][m
+[32m+[m[32m    file_name = osp.split(img_filename)[-1].split('.')[0][m
+[32m+[m[32m    img = mmcv.imread(img_filename)[m
+[32m+[m[41m    [m
+[32m+[m[32m    pred_bboxes = data['gt_bboxes_3d'].data[0].tensor.numpy()[m
+[32m+[m[32m    if 'cam_intrinsic' not in data['img_metas'].data:[m
+[32m+[m[32m        raise NotImplementedError([m
+[32m+[m[32m                'camera intrinsic matrix is not provided')[m
+[32m+[m[32m    show_bboxes = CameraInstance3DBoxes([m
+[32m+[m[32m            pred_bboxes, box_dim=pred_bboxes.shape[-1], origin=(0.5, 1.0, 0.5))[m
+[32m+[m[32m    show_multi_modality_result([m
+[32m+[m[32m        img,[m
+[32m+[m[32m        None,[m
+[32m+[m[32m        show_bboxes,[m
+[32m+[m[32m        data['img_metas'].data['cam_intrinsic'],[m
+[32m+[m[32m        '../../../res/',[m
+[32m+[m[32m        file_name,[m
+[32m+[m[32m        box_mode='camera',[m
+[32m+[m[32m        show=True)[m
+ [m
+     # put model on gpus[m
+     if distributed:[m
