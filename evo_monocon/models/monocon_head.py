@@ -5,14 +5,18 @@ from mmcv.cnn import bias_init_with_prob, normal_init
 from mmcv.runner import force_fp32
 
 from mmdet.core import multi_apply
-from mmdet.models.builder import HEADS, build_loss
 from mmdet.models.utils.gaussian_target import (gaussian_radius, gen_gaussian_target)
 from mmdet.models.utils.gaussian_target import (get_local_maximum, get_topk_from_heatmap,
                                                 transpose_and_gather_feat)
-# from mmdet3d.ops.attentive_norm import AttnBatchNorm2d
 
 import torch.nn.functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
+
+from losses.centernet_gaussian_focal_loss import CenterNetGaussianFocalLoss
+from losses.smooth_l1_loss import L1Loss
+from losses.dim_aware_l1_loss import DimAwareL1Loss
+from losses.uncertainty_loss import LaplacianAleatoricUncertaintyLoss
+from losses.cross_entropy_loss import CrossEntropyLoss
 
 INF = 1e8
 EPS = 1e-12
@@ -203,7 +207,6 @@ class AttnBatchNorm2d(nn.BatchNorm2d):
         return weight * output + bias
 
 
-@HEADS.register_module()
 class MonoConHead(nn.Module):
     def __init__(self,
                  in_channel,
@@ -254,13 +257,6 @@ class MonoConHead(nn.Module):
         self.depth_head = self._build_head(in_channel, feat_channel, 2)
         self._build_dir_head(in_channel, feat_channel)
 
-        from losses.centernet_gaussian_focal_loss import CenterNetGaussianFocalLoss
-        from losses.smooth_l1_loss import L1Loss
-        from losses.dim_aware_l1_loss import DimAwareL1Loss
-        # , SmoothL1Loss, binary_cross_entropy, L1Loss, CrossEntropyLoss, MSELoss
-        from losses.uncertainty_loss import LaplacianAleatoricUncertaintyLoss
-        from losses.cross_entropy_loss import CrossEntropyLoss
-
         self.loss_center_heatmap = CenterNetGaussianFocalLoss(loss_weight=1.0)
         self.loss_wh = L1Loss(loss_weight=0.1)
         self.loss_offset = L1Loss(loss_weight=1.)
@@ -276,21 +272,6 @@ class MonoConHead(nn.Module):
         self.loss_alpha_cls = CrossEntropyLoss(use_sigmoid=True, loss_weight=1.0)
         self.loss_alpha_reg = L1Loss(loss_weight=1.)
         
-        # self.loss_center_heatmap = build_loss(loss_center_heatmap)
-        # self.loss_wh = build_loss(loss_wh)
-        # self.loss_offset = build_loss(loss_offset)
-        # self.loss_center2kpt_offset = build_loss(loss_center2kpt_offset)
-        # self.loss_kpt_heatmap = build_loss(loss_kpt_heatmap)
-        # self.loss_kpt_heatmap_offset = build_loss(loss_kpt_heatmap_offset)
-        # self.loss_dim = build_loss(loss_dim)
-        # if 'Aware' in loss_dim['type']:
-        #     self.dim_aware_in_loss = True
-        # else:
-        #     self.dim_aware_in_loss = False
-        # self.loss_depth = build_loss(loss_depth)
-        # self.loss_alpha_cls = build_loss(loss_alpha_cls)
-        # self.loss_alpha_reg = build_loss(loss_alpha_reg)
-
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.fp16_enabled = False

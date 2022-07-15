@@ -1,4 +1,3 @@
-import warnings
 
 import os
 import math
@@ -9,7 +8,6 @@ from torch.nn.modules.batchnorm import _BatchNorm
 from mmcv.cnn import build_norm_layer
 import torch.utils.model_zoo as model_zoo
 
-# from ..builder import BACKBONES
 
 
 BatchNorm = nn.BatchNorm2d

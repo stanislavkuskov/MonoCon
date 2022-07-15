@@ -1,10 +1,8 @@
-import os, sys
 import math
 import numpy as np
 import torch
 import torch.nn as nn
 from mmcv.cnn import build_norm_layer
-# from ..builder import NECKS
 
 
 class Conv2d(nn.Module):
@@ -89,8 +87,6 @@ class IDAUp(nn.Module):
 
         return layers
 
-
-# @NECKS.register_module()
 class DLAUp(nn.Module):
     def __init__(self, in_channels_list=[64, 128, 256, 512], scales_list=(1, 2, 4, 8),
                  start_level=2,

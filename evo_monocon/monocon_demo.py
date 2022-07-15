@@ -2,20 +2,20 @@ import torch
 from argparse import ArgumentParser
 from copy import deepcopy
 from os import path as osp
-
 import mmcv
 from mmcv.parallel import collate, scatter
 
 from models.dla import DLA
 from models.dlaup import DLAUp
 from models.monocon_head_inference import MonoConHeadInference
-from models.mono_centernet3d import CenterNetMono3D
+from models.mono_centernet3d import EvoCenterNetMono3D
 
 from mmdet3d.datasets.pipelines import Compose
 from mmdet3d.core.bbox import get_box_type
 
 from mmdet3d.core import Box3DMode
 from configs.kitti_mono3d_3class_monocon import data as cfg_data
+from utils.show_result import draw_camera_bbox3d_on_img
 
 def init_model(config, checkpoint=None, device='cuda:0'):
     """Initialize a model from config file, which could be a 3D detector or a
@@ -41,8 +41,7 @@ def init_model(config, checkpoint=None, device='cuda:0'):
     config.model.pretrained = None
     # convert_SyncBN(config.model)
     config.model.train_cfg = None
-    #TODO make model from classes
-    # model = CenterNetMono3D()
+
     args = config.model.copy()
 
     backbone = DLA(34)
@@ -53,7 +52,7 @@ def init_model(config, checkpoint=None, device='cuda:0'):
     head_args["test_cfg"] = config.model.test_cfg
     head = MonoConHeadInference(**head_args)
 
-    model = CenterNetMono3D(backbone, neck, head)
+    model = EvoCenterNetMono3D(backbone, neck, head)
 
     if checkpoint is not None:
         model_ckpt = torch.load(checkpoint)
@@ -79,14 +78,8 @@ def inference_mono_3d_detector(model, image, ann_file):
     
     cfg = model.cfg
     device = next(model.parameters()).device  # get device for input data from model
-    # build the data pipeline
-    # print("__x___"*10)
-    # print(cfg.data.test.pipeline)
-    # print("______"*10)
     test_pipeline = deepcopy(cfg.data.test.pipeline)
     test_pipeline = Compose(test_pipeline)
-    # print(test_pipeline)
-    # print("__x___"*10)
     box_type_3d, box_mode_3d = get_box_type(cfg.data.test.box_type_3d)
     # get data info containing calib
     data_infos = mmcv.load(ann_file)
@@ -119,17 +112,13 @@ def inference_mono_3d_detector(model, image, ann_file):
     if next(model.parameters()).is_cuda:
         # scatter to specified GPU
         data = scatter(data, [device.index])[0]
-    else:
-        # this is a workaround to avoid the bug of MMDataParallel
-        data['img_metas'] = data['img_metas'][0].data
-        data['img'] = data['img'][0].data
 
-    # print(data['img_metas'])
-    # forward the model
-    # print(data.keys())
+    data['img_metas'] = data['img_metas'][0]
+    data['img'] = data['img'][0].data
+
     with torch.no_grad():
-        print(data['img_metas'])
-        result = model(return_loss=False, rescale=True, **data)
+        result = model(data['img'], data['img_metas'])
+
     return result, data
 
 
@@ -157,21 +146,18 @@ def main():
     model = init_model(args.config, args.checkpoint, device=args.device)
     # test a single image
     result, data = inference_mono_3d_detector(model, args.image, args.ann)
-    # show the results
-    print(result)
-    # [{'img_bbox': {'boxes_3d': CameraInstance3DBoxes(
-    # tensor([[1.9634, 1.5211, 9.0842, 1.2410, 1.9338, 0.5110, 0.0898]])), 'scores_3d': tensor([18.9357]), 'labels_3d': tensor([0])}}]
+    img_filename = data['img_metas'][0]['filename']
+    file_name = osp.split(img_filename)[-1].split('.')[0]
 
-    ## Show results from mmdetection
-    # show_result_meshlab(
-    #     data,
-    #     result,
-    #     args.out_dir,
-    #     args.score_thr,
-    #     show=args.show,
-    #     snapshot=args.snapshot,
-    #     task='mono-det')
-
+    # read from file because img in data_dict has undergone pipeline transform
+    img = mmcv.imread(img_filename)
+    res = draw_camera_bbox3d_on_img(
+        bboxes3d=result[0][0], raw_img=img,
+        cam_intrinsic=data['img_metas'][0]['cam_intrinsic']
+    )
+    import cv2
+    cv2.imwrite("res.jpg",res)
+    print(type(res))
 
 if __name__ == '__main__':
     main()
