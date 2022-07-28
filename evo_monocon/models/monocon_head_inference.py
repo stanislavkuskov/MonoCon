@@ -67,8 +67,6 @@ class MonoConHeadInference(MonoConHead):
         assert len(center_heatmap_preds) == len(center2kpt_offset_preds) \
                == len(dim_preds) == len(alpha_cls_preds) == len(alpha_offset_preds) == 1
         scale_factors = [img_meta['scale_factor'] for img_meta in img_metas]
-        box_type_3d = img_metas[0]['box_type_3d']
-
         batch_det_scores, batch_det_bboxes_3d, batch_labels = self.decode_heatmap(
             center_heatmap_preds[0],
             center2kpt_offset_preds[0],
@@ -81,15 +79,9 @@ class MonoConHeadInference(MonoConHead):
             k=self.test_cfg.topk,
             kernel=self.test_cfg.local_maximum_kernel,
             thresh=self.test_cfg.thresh)
+        # TODO пересобрать детекции без использования box_type_3d
 
-        det_results = [
-            [box_type_3d(batch_det_bboxes_3d,
-                         box_dim=self.bbox_code_size, origin=(0.5, 0.5, 0.5)),
-             batch_det_scores[:, -1],
-             batch_labels,
-             ]
-        ]
-        return det_results
+        return batch_det_scores, batch_det_bboxes_3d, batch_labels
 
     def decode_heatmap(self,
                        center_heatmap_pred,
