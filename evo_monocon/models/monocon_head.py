@@ -803,7 +803,7 @@ class MonoConHead(nn.Module):
 
     def recover_rotation(self, kpts, alpha, calib): #ddd
         device = kpts.device
-        calib = torch.tensor(calib).type(torch.FloatTensor).to(device).unsqueeze(0)
+        calib = calib.to(device).unsqueeze(0)
 
         si = torch.zeros_like(kpts[:, :, 0:1]) + calib[:, 0:1, 0:1]
         rot_y = alpha + torch.atan2(kpts[:, :, 0:1] - calib[:, 0:1, 2:3], si)

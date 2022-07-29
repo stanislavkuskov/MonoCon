@@ -1,10 +1,11 @@
+import cv2
+import mmcv
 import torch
+import torchvision.transforms as transforms
+
 from argparse import ArgumentParser
 from os import path as osp
-import mmcv
-
 from torch.utils.data.dataloader import DataLoader
-import torchvision.transforms as transforms
 
 from configs.kitti_mono3d_3class_monocon import data as cfg_data
 
@@ -19,20 +20,6 @@ from utils.show_result import draw_camera_bbox3d_on_img
 from utils.cam_box3d import CameraInstance3DBoxes
 
 def init_model(config, checkpoint=None, device='cuda:0'):
-    """Initialize a model from config file, which could be a 3D detector or a
-    3D segmentor.
-
-    Args:
-        config (str or :obj:`mmcv.Config`): Config file path or the config
-            object.
-        checkpoint (str, optional): Checkpoint path. If left as None, the model
-            will not load any weights.
-        device (str): Device to use.
-
-    Returns:
-        nn.Module: The constructed detector.
-    """
-
     if isinstance(config, str):
         config = mmcv.Config.fromfile(config)
     elif not isinstance(config, mmcv.Config):
@@ -46,9 +33,9 @@ def init_model(config, checkpoint=None, device='cuda:0'):
 
     backbone = DLA(34)
     neck = DLAUp()
-    
     head_args= args["bbox_head"]
     del head_args["type"]
+    
     head_args["test_cfg"] = config.model.test_cfg
     head = MonoConHeadInference(**head_args)
 
@@ -63,38 +50,6 @@ def init_model(config, checkpoint=None, device='cuda:0'):
     model.to(device)
     model.eval()
     return model
-
-def inference_mono_3d_detector(model, test_dataloader):
-    """Inference image with the monocular 3D detector.
-
-    Args:
-        model (nn.Module): The loaded detector.
-        image (str): Image files.
-        ann_file (str): Annotation files.
-
-    Returns:
-        tuple: Predicted results and data from pipeline.
-    """
-    
-    device = next(model.parameters()).device  # get device for input data from model
-
-    data = {}
-    test_data = next(iter(test_dataloader))
-    data['img'] = test_data[0].to(device)
-    
-    meta = test_data[1]
-    # Dict of lists into list of dicts
-    data['img_metas'] = [
-        {
-            key:value[index] for key,value in meta.items()
-        } for index in range(max(map(len,meta.values())))
-    ]
-
-    with torch.no_grad():
-        result = model(data['img'], data['img_metas'])
-
-    return result, data
-
 
 def main():
     parser = ArgumentParser()
@@ -119,7 +74,7 @@ def main():
     # build the model from a config file and a checkpoint file
     model = init_model(args.config, args.checkpoint, device=args.device)
     
-    # TODO make torch.dataset for image
+    # make torch.dataset for image and metadata
     normalize = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(
@@ -140,14 +95,24 @@ def main():
         num_workers=0,
     )
 
-    # test a single image
-    (batch_det_scores, batch_det_bboxes_3d, batch_labels), data = \
-        inference_mono_3d_detector(
-            model,
-            test_dataloader
-        )
-    # TODO Переписать
-    # box_type_3d = img_metas[0]['box_type_3d']
+    # Make data for model inference
+    data = {}
+        # return one sample from dataloader - tiple(image, metadata)
+    test_data = next(iter(test_dataloader))
+    data['img'] = test_data[0].to(args.device)
+    
+    meta = test_data[1]
+        # Dict of lists into list of dicts
+    data['img_metas'] = [
+        {
+            key:value[index] for key,value in meta.items()
+        } for index in range(max(map(len,meta.values())))
+    ]
+
+    # Model inference
+    with torch.no_grad():
+        (batch_det_scores, batch_det_bboxes_3d, batch_labels) = model(data['img'], data['img_metas'])
+
     box_type_3d = CameraInstance3DBoxes
     det_results = [
         [
@@ -161,16 +126,18 @@ def main():
         ]
     ]
     img_filename = data['img_metas'][0]['filename']
-    file_name = osp.split(img_filename)[-1].split('.')[0]
 
     # read from file because img in data_dict has undergone pipeline transform
     img = mmcv.imread(img_filename)
+    print(data["img"].shape)
+    
+    img = cv2.resize(img,(1248, 384))
 
     res = draw_camera_bbox3d_on_img(
         bboxes3d=det_results[0][0], raw_img=img,
         cam_intrinsic=data['img_metas'][0]['cam_intrinsic']
     )
-    import cv2
+
     cv2.imwrite("res.jpg",res)
 
 if __name__ == '__main__':

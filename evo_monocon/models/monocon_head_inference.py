@@ -79,8 +79,6 @@ class MonoConHeadInference(MonoConHead):
             k=self.test_cfg.topk,
             kernel=self.test_cfg.local_maximum_kernel,
             thresh=self.test_cfg.thresh)
-        # TODO пересобрать детекции без использования box_type_3d
-
         return batch_det_scores, batch_det_bboxes_3d, batch_labels
 
     def decode_heatmap(self,
@@ -126,10 +124,9 @@ class MonoConHeadInference(MonoConHead):
         center2kpt_offset[..., 1::2] += ys.view(batch, k, 1).expand(batch, k, 1)
 
         kpts = center2kpt_offset
-
-        kpts[..., ::2] *= (inp_w / width)
-        kpts[..., 1::2] *= (inp_h / height)
-
+        kpts[..., ::2] *= (int(inp_w) / width)
+        kpts[..., 1::2] *= (int(inp_h) / height)
+        
         # 1. decode alpha
         alpha = self.decode_alpha_multibin(alpha_cls, alpha_offset)  # (b, k, 1)
 
